@@ -9,7 +9,7 @@ A collection of ESP32-based robotics, IoT, and automation projects featuring wir
 
 ## 🎯 Projects Overview
 
-### 🤖 Robot Platform
+### 1. 🤖 Robot Platform
 **Location:** `Robot-Platform/`
 
 A comprehensive ESP32-based robotics platform with dual microcontroller architecture:
@@ -34,7 +34,7 @@ A comprehensive ESP32-based robotics platform with dual microcontroller architec
   - Real-time web-based monitoring interface
 - **Hardware:** ESP32, MPU6050 IMU, Hall sensors
 
-### 🎛️ Servo Tray Controller
+### 2. 🎛️ Servo Tray Controller
 **Location:** `Tray/`
 
 A precision servo control system for tray positioning and automation:
@@ -199,4 +199,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Built with ❤️ by Daniel Armoni**
+
 
