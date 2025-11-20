@@ -15,7 +15,7 @@
 **Solution:** Built a gamepad-controlled robot using ESP-IDF and custom motor control algorithms
 
 ![Robot Demo](robot-demo.gif)  
-*[📹 Watch Full Demo Video](robot-platform-demo.mp4)*
+*[📹 Watch Full Demo Video]([robot-platform-demo.mp4](https://www.youtube.com/shorts/gVGwFHfyjpY))*
 
 **Impact & Technical Achievement:**
 - ✅ Achieved <50ms latency for **real-time Bluetooth control** using Bluepad32 library
@@ -100,6 +100,7 @@ git clone --recursive https://github.com/dani6464/Daniel-Armoni-s-Projects.git
 ---
 
 *Last Updated: November 2025*
+
 
 
 
