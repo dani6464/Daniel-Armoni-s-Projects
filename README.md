@@ -18,7 +18,7 @@ Handheld gamepad controls a differential-drive robot over Bluetooth (Bluepad32).
 
 ---
 
-### Multi-Axis Servo Automation (Tray)
+### Multi-Axis Servo (Tray)
 Three synchronized servos driven via PCA9685 (I²C) with WiFi control endpoints and calibrated PWM→angle mapping for heterogeneous servo ranges; supports smooth multi-step motion sequences.
 
 **Demo:** [Watch on YouTube](https://www.youtube.com/watch?v=FMC_Z8pV1XE)  
@@ -37,6 +37,7 @@ ESP32 (ESP-IDF / Arduino) · C/C++ · Bluetooth LE · WiFi/WebSocket · I²C/PWM
 - **GitHub:** [dani6464](https://github.com/dani6464)
 
 ---
+
 
 
 
