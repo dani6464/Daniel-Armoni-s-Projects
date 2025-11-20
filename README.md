@@ -2,7 +2,7 @@
 
 [![ESP32](https://img.shields.io/badge/Platform-ESP32-blue.svg)](https://www.espressif.com/en/products/socs/esp32)
 [![C++](https://img.shields.io/badge/Language-C%2FC%2B%2B-00599C.svg)](https://isocpp.org/)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0077B5.svg)](https://linkedin.com/in/yourprofile)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0077B5.svg)](https://www.linkedin.com/in/daniel-armoni/)
 
 **Embedded Systems Engineer** specializing in **robotics**, **wireless control systems**, and **real-time IoT solutions**. Proven track record of developing production-ready firmware for ESP32 microcontrollers with expertise in Bluetooth, WiFi, and sensor integration.
 
@@ -95,10 +95,11 @@ git clone --recursive https://github.com/dani6464/Daniel-Armoni-s-Projects.git
 
 ## 📧 Let's Connect
 💼 **Open to opportunities** in embedded systems, robotics, and IoT development  
-🔗 [LinkedIn](https://linkedin.com/in/yourprofile) | 📧 your.email@example.com | 💻 [GitHub](https://github.com/dani6464)
+🔗 [LinkedIn](https://www.linkedin.com/in/daniel-armoni/) | 📧 daniellearmoni@gmail.com | 💻 [GitHub](https://github.com/dani6464)
 
 ---
 
 *Last Updated: November 2025*
+
 
 
