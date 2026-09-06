@@ -1,0 +1,14 @@
+﻿{
+  "manifest_version": 3,
+  "name": "Social Analytics Pro",
+  "version": "3.0.0",
+  "description": "Minimalist social analytics opening in a full tab, with real Instagram profile data extraction.",
+  "action": {},
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["tabs", "scripting", "downloads", "storage"],
+  "host_permissions": [
+    "*://*.instagram.com/*"
+  ]
+}

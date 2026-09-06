@@ -1,0 +1,88 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Social Analytics Pro</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <header class="topbar">
+      <div class="logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        Social Analytics <span>PRO</span>
+      </div>
+      <div style="display:flex; gap:0.75rem;">
+        <button id="importBtn" class="btn outline" style="border-color:var(--text-muted); color:var(--text-muted);">Import CSV</button>
+        <button id="exportBtn" class="btn outline hidden">Export Backup</button>
+        <input type="file" id="csvFileInput" accept=".csv" style="display:none;">
+      </div>
+    </header>
+    
+    <main class="main-content">
+      <div id="connectState" class="state-view">
+        <div class="connect-card">
+          <h1>Analyze your Social Profile</h1>
+          <p>Extract and save 100% real data from your active Instagram tab.</p>
+          <div class="instructions">
+            <span class="step">1. Open an Instagram profile in any Chrome tab</span>
+            <span class="step">2. Click the button below to pull the live data</span>
+          </div>
+          <button id="connectBtn" class="btn primary large">Extract & Save Snapshot</button>
+          <div id="errorMsg" class="error hidden">Could not find an Instagram profile. Please open one in a new tab first.</div>
+          <div id="importSuccessMsg" style="color:var(--success); margin-top:1rem; font-weight:600;" class="hidden"></div>
+        </div>
+      </div>
+      
+      <div id="dashboardState" class="state-view hidden">
+         <div class="profile-header">
+            <img id="avatar" src="" alt="" class="avatar-img hidden">
+            <div class="info">
+               <h2 id="username">@username</h2>
+               <span class="badge live">AUTHENTIC LIVE DATA</span>
+            </div>
+         </div>
+         
+         <div class="grid">
+            <div class="card">
+               <h3>Followers</h3>
+               <div class="value" id="realFollowers">0</div>
+            </div>
+            <div class="card">
+               <h3>Following</h3>
+               <div class="value" id="realFollowing">0</div>
+            </div>
+            <div class="card">
+               <h3>Posts</h3>
+               <div class="value" id="realPosts">0</div>
+            </div>
+            <div class="card highlight">
+               <h3>Follow Ratio</h3>
+               <div class="value text" id="followRatio">0</div>
+               <div class="subtext">Followers per Following</div>
+            </div>
+         </div>
+
+         <div class="card highlight" style="margin-top: 1.5rem;">
+            <h3 style="display: flex; justify-content: space-between; align-items: center; margin-bottom:0;">
+                Audience Change Tracker
+                <button id="resetDbBtn" class="btn outline" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; border-color: #ef4444; color: #ef4444;">Reset History</button>
+            </h3>
+            <div id="historyContent" style="margin-top: 1rem; line-height: 1.5;">
+               Loading snapshot history...
+            </div>
+         </div>
+
+         <div class="note-card">
+            <h3>System Architecture Note</h3>
+            <p>This extension uses the browser's secure cloud database (<code>chrome.storage.sync</code>) to save historical snapshots. By extracting live data today and comparing it to data saved remotely from your past sessions (or from imported CSV backups), we can calculate real follower growth and losses across all your synced devices.</p>
+         </div>
+      </div>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

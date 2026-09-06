@@ -43,3 +43,6 @@ ESP32 (ESP-IDF / Arduino) · C/C++ · Bluetooth LE · WiFi/WebSocket · I²C/PWM
 
 
 
+
+## Social Analytics PRO
+A privacy-first, serverless Chrome extension designed to extract authentic live Instagram metrics without risking account bans or data breaches. Features advanced background API polling and complete cross-device CSV backup/restore functionalities. Built as part of a final university project.
