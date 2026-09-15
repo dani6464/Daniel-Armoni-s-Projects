@@ -76,6 +76,11 @@
             </div>
          </div>
 
+         <div class="card" style="margin-top: 1.5rem; display: none;" id="historyLogCard">
+            <h3 style="margin-bottom: 1rem;">Recent History Log (Last 5 Changes)</h3>
+            <div id="historyLogContent" style="display: flex; flex-direction: column; gap: 1rem;">
+            </div>
+         </div>
          <div class="note-card">
             <h3>System Architecture Note</h3>
             <p>This extension uses the browser's secure cloud database (<code>chrome.storage.sync</code>) to save historical snapshots. By extracting live data today and comparing it to data saved remotely from your past sessions (or from imported CSV backups), we can calculate real follower growth and losses across all your synced devices.</p>

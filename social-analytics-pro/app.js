@@ -1,6 +1,7 @@
 ﻿
 const $ = (s) => document.querySelector(s);
 let currentDbKey = null;
+let historyDbKey = null;
 
 function parseNumberStr(str) {
   if (!str) return 0;
@@ -158,14 +159,18 @@ function parseAndShowData(stats) {
 
   const now = new Date().toLocaleString();
   currentDbKey = `snapshot_${stats.username}`;
+  historyDbKey = `history_${stats.username}`;
 
-  chrome.storage.sync.get([currentDbKey], (result) => {
+  chrome.storage.sync.get([currentDbKey, historyDbKey], (result) => {
     const last = result[currentDbKey];
+    let history = result[historyDbKey] || [];
     const hc = $("#historyContent");
     
     let lostUsers = [];
+    let newUsers = [];
     if (last && last.followersList && stats.followersList && stats.followersList.length > 0) {
       lostUsers = last.followersList.filter(u => !stats.followersList.includes(u));
+      newUsers = stats.followersList.filter(u => !last.followersList.includes(u));
     }
 
     if (last) {
@@ -178,29 +183,57 @@ function parseAndShowData(stats) {
       const signF = diffF > 0 ? "+" : "";
       const signFl = diffFl > 0 ? "+" : "";
 
+      // Add to history log if there's any change
+      if (diffF !== 0 || diffFl !== 0 || lostUsers.length > 0 || newUsers.length > 0) {
+          history.unshift({
+              date: now,
+              diffF,
+              diffFl,
+              lost: lostUsers,
+              gained: newUsers
+          });
+          if (history.length > 5) history = history.slice(0, 5); // Keep last 5
+      }
+
       let lostUsersHtml = "";
       if (lostUsers.length > 0) {
-         lostUsersHtml = `<div style="margin-top:1rem; padding:1rem; background:rgba(239, 68, 68, 0.1); border-radius:0.5rem; border:1px solid #ef4444;">
-            <strong style="color:#ef4444; display:block; margin-bottom:0.5rem;">Exact Unfollowers Detected! 📉</strong>
+         lostUsersHtml = `<div style="margin-top:1rem; padding:1rem; background:rgba(239, 68, 68, 0.1); border-radius:0.5rem; border:1px solid #ef4444; flex: 1;">
+            <strong style="color:#ef4444; display:block; margin-bottom:0.5rem;">Unfollowers Detected 📉</strong>
             <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.5rem;">
               ${lostUsers.map(u => `<li><a href="https://instagram.com/${u}" target="_blank" style="color:var(--text); text-decoration:none;">@${u}</a></li>`).join("")}
             </ul>
          </div>`;
       } else if (diffF < 0) {
          lostUsersHtml = `<p style="color:#ef4444; margin-top:1rem;">Scan detected missing followers, but API exact name comparison failed.</p>`;
-      } else {
-         lostUsersHtml = `<div style="margin-top:1rem; color:var(--success);">No unfollowers detected since last scan.</div>`;
       }
 
-      hc.innerHTML = `
+      let newUsersHtml = "";
+      if (newUsers.length > 0) {
+         newUsersHtml = `<div style="margin-top:1rem; padding:1rem; background:rgba(16, 185, 129, 0.1); border-radius:0.5rem; border:1px solid var(--success); flex: 1;">
+            <strong style="color:var(--success); display:block; margin-bottom:0.5rem;">New Followers 🎉</strong>
+            <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.5rem;">
+              ${newUsers.map(u => `<li><a href="https://instagram.com/${u}" target="_blank" style="color:var(--text); text-decoration:none;">@${u}</a></li>`).join("")}
+            </ul>
+         </div>`;
+      }
+
+      let comparisonHtml = `
         <p style="margin-bottom:1rem; color:var(--text-muted);">Compared to your scan on <strong>${last.date}</strong>:</p>
         <div style="display:flex; gap:2rem; font-size:1.1rem; margin-bottom:1rem;">
           <div>Followers: <strong style="color:${fColor}">${signF}${diffF}</strong></div>
           <div>Following: <strong style="color:${flColor}">${signFl}${diffFl}</strong></div>
         </div>
-        ${lostUsersHtml}
-        <p style="color:var(--text-muted); font-size:0.85rem; margin-top:1rem;">(We securely saved a new snapshot for your next visit).</p>
       `;
+
+      if (lostUsers.length === 0 && newUsers.length === 0 && diffF >= 0) {
+          comparisonHtml += `<div style="margin-top:1rem; color:var(--success);">No changes detected since last scan.</div>`;
+      } else {
+          comparisonHtml += `<div style="display:flex; gap:1rem; flex-wrap: wrap;">${lostUsersHtml}${newUsersHtml}</div>`;
+      }
+
+      comparisonHtml += `<p style="color:var(--text-muted); font-size:0.85rem; margin-top:1rem;">(We securely saved a new snapshot for your next visit).</p>`;
+      hc.innerHTML = comparisonHtml;
+      
     } else {
       const namesExtractedMsg = stats.followersList && stats.followersList.length > 0 
           ? `We successfully extracted <strong>${stats.followersList.length} exact usernames automatically</strong>.` 
@@ -211,6 +244,39 @@ function parseAndShowData(stats) {
         <p style="color:var(--text-muted); margin-bottom:0.5rem;">We saved your current follower counts and names locally. Run this extension again tomorrow to detect exactly who unfollowed you.</p>
         <p style="color:var(--primary); font-size:0.9rem;">${namesExtractedMsg}</p>
       `;
+    }
+
+    // Render History Log
+    const hlCard = $("#historyLogCard");
+    const hlContent = $("#historyLogContent");
+    if (history.length > 0) {
+        hlCard.style.display = "block";
+        hlContent.innerHTML = history.map(log => {
+            const fColor = log.diffF > 0 ? "var(--success)" : (log.diffF < 0 ? "#ef4444" : "var(--text)");
+            const flColor = log.diffFl > 0 ? "var(--success)" : (log.diffFl < 0 ? "#ef4444" : "var(--text)");
+            const signF = log.diffF > 0 ? "+" : "";
+            const signFl = log.diffFl > 0 ? "+" : "";
+            
+            let usersStr = "";
+            if (log.lost && log.lost.length > 0) {
+               usersStr += `<div style="color:#ef4444; font-size: 0.85rem; margin-top: 0.25rem;">Lost: ${log.lost.map(u=>`<a href="https://instagram.com/${u}" target="_blank" style="color:#ef4444;">@${u}</a>`).join(", ")}</div>`;
+            }
+            if (log.gained && log.gained.length > 0) {
+               usersStr += `<div style="color:var(--success); font-size: 0.85rem; margin-top: 0.25rem;">Gained: ${log.gained.map(u=>`<a href="https://instagram.com/${u}" target="_blank" style="color:var(--success);">@${u}</a>`).join(", ")}</div>`;
+            }
+
+            return `
+            <div style="border-left: 3px solid var(--primary); padding-left: 1rem; padding-bottom: 0.5rem;">
+                <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem;">${log.date}</div>
+                <div style="font-size: 0.95rem;">
+                    Followers: <span style="color:${fColor}">${signF}${log.diffF}</span> | 
+                    Following: <span style="color:${flColor}">${signFl}${log.diffFl}</span>
+                </div>
+                ${usersStr}
+            </div>`;
+        }).join("");
+    } else {
+        hlCard.style.display = "none";
     }
 
     $("#exportBtn").classList.remove("hidden");
@@ -226,6 +292,12 @@ function parseAndShowData(stats) {
       if (lostUsers.length > 0) {
         csvStr += `Unfollowers Detected\n`;
         lostUsers.forEach(u => csvStr += `${u}\n`);
+        csvStr += `\n`;
+      }
+
+      if (newUsers.length > 0) {
+        csvStr += `New Followers Detected\n`;
+        newUsers.forEach(u => csvStr += `${u}\n`);
         csvStr += `\n`;
       }
 
@@ -247,7 +319,8 @@ function parseAndShowData(stats) {
          following: flNum, 
          date: now,
          followersList: stats.followersList || []
-      }
+      },
+      [historyDbKey]: history
     });
   });
 
@@ -259,11 +332,12 @@ document.getElementById("connectBtn").addEventListener("click", connectLiveProfi
 
 document.getElementById("resetDbBtn").addEventListener("click", () => {
   if (currentDbKey) {
-    chrome.storage.sync.remove(currentDbKey, () => {
+    chrome.storage.sync.remove([currentDbKey, historyDbKey], () => {
       $("#historyContent").innerHTML = `
         <div style="color:#ef4444; font-size:1.1rem; margin-bottom:0.5rem; font-weight:600;">History Cleared! 🗑️</div>
         <p style="color:var(--text-muted);">Your historical data for this account has been deleted. Click "Extract" again to start a fresh snapshot.</p>
       `;
+      $("#historyLogCard").style.display = "none";
     });
   }
 });
@@ -298,7 +372,7 @@ document.getElementById("csvFileInput").addEventListener("change", (e) => {
         else if (line.startsWith("Following,")) following = parseInt(line.split(",")[1]);
         else if (line.startsWith("Last Scanned,")) date = line.substring(line.indexOf(",") + 1);
         else if (line.startsWith("Full Followers List")) isParsingList = true;
-        else if (line.startsWith("Unfollowers Detected")) isParsingList = false;
+        else if (line.startsWith("Unfollowers Detected") || line.startsWith("New Followers Detected")) isParsingList = false;
         else if (isParsingList && !line.includes("(No names")) {
           followersList.push(line);
         }
