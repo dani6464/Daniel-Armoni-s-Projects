@@ -17,7 +17,7 @@ function parseNumberStr(str) {
 async function connectLiveProfile() {
   const btn = $("#connectBtn");
   const err = $("#errorMsg");
-  btn.textContent = "Connecting via Invisible API...";
+  btn.textContent = "Extracting Full Data (May take a minute)...";
   err.classList.add("hidden");
   $("#importSuccessMsg").classList.add("hidden");
 
@@ -53,6 +53,8 @@ async function connectLiveProfile() {
         let postsCount = ptMatch ? ptMatch[1] : "0";
 
         let followersList = [];
+        let followingList = [];
+        
         try {
           let userId = null;
           const htmlText = document.documentElement.innerHTML;
@@ -78,35 +80,38 @@ async function connectLiveProfile() {
                 "Accept": "*/*"
             };
             
-            let hasNext = true;
-            let maxId = "";
-            let usersSet = new Set();
-            let count = 0;
-            
-            // Added search_surface and reduced count to ensure stable pagination
-            while (hasNext && count < 3000) { 
-              const url = `https://www.instagram.com/api/v1/friendships/${userId}/followers/?count=100&search_surface=follow_list_page${maxId ? "&max_id="+maxId : ""}`;
-              const res = await fetch(url, { headers });
-              
-              if (!res.ok) throw new Error("API rate limit or auth error");
-              
-              const json = await res.json();
-              if (json.users) {
-                  for (let u of json.users) {
-                      // CRITICAL FIX: Ensure all usernames are lowercase to prevent duplicate mismatch bugs
-                      usersSet.add(u.username.toLowerCase());
-                      count++;
-                  }
+            async function fetchUsers(endpoint) {
+              let hasNext = true;
+              let maxId = "";
+              let usersSet = new Set();
+              let count = 0;
+              // Safe parameters to avoid Instagram blocking us
+              while (hasNext && count < 3000) { 
+                const url = `https://www.instagram.com/api/v1/friendships/${userId}/${endpoint}/?count=50${maxId ? "&max_id="+maxId : ""}`;
+                const res = await fetch(url, { headers });
+                
+                if (!res.ok) throw new Error("API block");
+                const json = await res.json();
+                
+                if (json.users) {
+                    for (let u of json.users) {
+                        usersSet.add(u.username.toLowerCase());
+                        count++;
+                    }
+                }
+                
+                if (json.next_max_id) {
+                    maxId = json.next_max_id;
+                    await new Promise(r => setTimeout(r, 800)); // sleep 800ms
+                } else {
+                    hasNext = false;
+                }
               }
-              
-              if (json.next_max_id) {
-                  maxId = json.next_max_id;
-                  await new Promise(r => setTimeout(r, 750)); // increased sleep slightly for safety
-              } else {
-                  hasNext = false;
-              }
+              return Array.from(usersSet);
             }
-            followersList = Array.from(usersSet);
+
+            followersList = await fetchUsers("followers");
+            followingList = await fetchUsers("following");
           }
         } catch(e) {
           console.error("API Extractor Error:", e);
@@ -118,7 +123,8 @@ async function connectLiveProfile() {
           posts: postsCount, 
           username: username.toLowerCase(),
           avatarUrl,
-          followersList
+          followersList,
+          followingList
         };
       }
     });
@@ -163,24 +169,35 @@ function parseAndShowData(stats) {
   currentDbKey = `snapshot_${stats.username}`;
   historyDbKey = `history_${stats.username}`;
 
-  // CRITICAL FIX: Moved from chrome.storage.sync to chrome.storage.local to avoid the 8KB limit per item
   chrome.storage.local.get([currentDbKey, historyDbKey], (result) => {
     const last = result[currentDbKey];
     let history = result[historyDbKey] || [];
     const hc = $("#historyContent");
     
-    let lostUsers = [];
-    let newUsers = [];
+    let lostFollowers = [];
+    let newFollowers = [];
+    let lostFollowing = [];
+    let newFollowing = [];
     
-    // Ensure case-insensitivity on old data as well
     const sanitizeList = (list) => (list || []).map(u => u.toLowerCase());
     
-    const oldList = sanitizeList(last ? last.followersList : []);
-    const newList = sanitizeList(stats.followersList);
+    const oldFollowersList = sanitizeList(last ? last.followersList : []);
+    const newFollowersList = sanitizeList(stats.followersList);
+    
+    const oldFollowingList = sanitizeList(last ? last.followingList : []);
+    const newFollowingList = sanitizeList(stats.followingList);
 
-    if (last && oldList.length > 0 && newList.length > 0) {
-      lostUsers = oldList.filter(u => !newList.includes(u));
-      newUsers = newList.filter(u => !oldList.includes(u));
+    // Only compare if we successfully fetched lists THIS time and LAST time
+    const apiSuccessFollowers = oldFollowersList.length > 0 && newFollowersList.length > 0;
+    if (apiSuccessFollowers) {
+      lostFollowers = oldFollowersList.filter(u => !newFollowersList.includes(u));
+      newFollowers = newFollowersList.filter(u => !oldFollowersList.includes(u));
+    }
+    
+    const apiSuccessFollowing = oldFollowingList.length > 0 && newFollowingList.length > 0;
+    if (apiSuccessFollowing) {
+      lostFollowing = oldFollowingList.filter(u => !newFollowingList.includes(u));
+      newFollowing = newFollowingList.filter(u => !oldFollowingList.includes(u));
     }
 
     if (last) {
@@ -193,35 +210,55 @@ function parseAndShowData(stats) {
       const signF = diffF > 0 ? "+" : "";
       const signFl = diffFl > 0 ? "+" : "";
 
-      if (diffF !== 0 || diffFl !== 0 || lostUsers.length > 0 || newUsers.length > 0) {
+      if (diffF !== 0 || diffFl !== 0 || lostFollowers.length > 0 || newFollowers.length > 0 || lostFollowing.length > 0 || newFollowing.length > 0) {
           history.unshift({
               date: now,
               diffF,
               diffFl,
-              lost: lostUsers,
-              gained: newUsers
+              lost: lostFollowers,
+              gained: newFollowers,
+              lostFollowing,
+              newFollowing
           });
           if (history.length > 5) history = history.slice(0, 5); 
       }
 
       let lostUsersHtml = "";
-      if (lostUsers.length > 0) {
-         lostUsersHtml = `<div style="margin-top:1rem; padding:1rem; background:rgba(239, 68, 68, 0.1); border-radius:0.5rem; border:1px solid #ef4444; flex: 1;">
+      if (lostFollowers.length > 0) {
+         lostUsersHtml = `<div style="margin-top:1rem; padding:1rem; background:rgba(239, 68, 68, 0.1); border-radius:0.5rem; border:1px solid #ef4444; flex: 1; min-width: 200px;">
             <strong style="color:#ef4444; display:block; margin-bottom:0.5rem;">Unfollowers Detected 📉</strong>
             <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.5rem;">
-              ${lostUsers.map(u => `<li><a href="https://instagram.com/${u}" target="_blank" style="color:var(--text); text-decoration:none;">@${u}</a></li>`).join("")}
+              ${lostFollowers.map(u => `<li><a href="https://instagram.com/${u}" target="_blank" style="color:var(--text); text-decoration:none;">@${u}</a></li>`).join("")}
             </ul>
          </div>`;
-      } else if (diffF < 0) {
-         lostUsersHtml = `<p style="color:#ef4444; margin-top:1rem;">Scan detected missing followers, but API exact name comparison failed.</p>`;
       }
 
       let newUsersHtml = "";
-      if (newUsers.length > 0) {
-         newUsersHtml = `<div style="margin-top:1rem; padding:1rem; background:rgba(16, 185, 129, 0.1); border-radius:0.5rem; border:1px solid var(--success); flex: 1;">
+      if (newFollowers.length > 0) {
+         newUsersHtml = `<div style="margin-top:1rem; padding:1rem; background:rgba(16, 185, 129, 0.1); border-radius:0.5rem; border:1px solid var(--success); flex: 1; min-width: 200px;">
             <strong style="color:var(--success); display:block; margin-bottom:0.5rem;">New Followers 🎉</strong>
             <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.5rem;">
-              ${newUsers.map(u => `<li><a href="https://instagram.com/${u}" target="_blank" style="color:var(--text); text-decoration:none;">@${u}</a></li>`).join("")}
+              ${newFollowers.map(u => `<li><a href="https://instagram.com/${u}" target="_blank" style="color:var(--text); text-decoration:none;">@${u}</a></li>`).join("")}
+            </ul>
+         </div>`;
+      }
+      
+      let newFollowingHtml = "";
+      if (newFollowing.length > 0) {
+         newFollowingHtml = `<div style="margin-top:1rem; padding:1rem; background:rgba(59, 130, 246, 0.1); border-radius:0.5rem; border:1px solid #3b82f6; flex: 1; min-width: 200px;">
+            <strong style="color:#3b82f6; display:block; margin-bottom:0.5rem;">You Newly Followed 🔍</strong>
+            <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.5rem;">
+              ${newFollowing.map(u => `<li><a href="https://instagram.com/${u}" target="_blank" style="color:var(--text); text-decoration:none;">@${u}</a></li>`).join("")}
+            </ul>
+         </div>`;
+      }
+      
+      let lostFollowingHtml = "";
+      if (lostFollowing.length > 0) {
+         lostFollowingHtml = `<div style="margin-top:1rem; padding:1rem; background:rgba(156, 163, 175, 0.1); border-radius:0.5rem; border:1px solid #9ca3af; flex: 1; min-width: 200px;">
+            <strong style="color:#6b7280; display:block; margin-bottom:0.5rem;">You Unfollowed ✂️</strong>
+            <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.5rem;">
+              ${lostFollowing.map(u => `<li><a href="https://instagram.com/${u}" target="_blank" style="color:var(--text); text-decoration:none;">@${u}</a></li>`).join("")}
             </ul>
          </div>`;
       }
@@ -233,25 +270,29 @@ function parseAndShowData(stats) {
           <div>Following: <strong style="color:${flColor}">${signFl}${diffFl}</strong></div>
         </div>
       `;
+      
+      if (!apiSuccessFollowers && diffF !== 0) {
+          comparisonHtml += `<div style="margin-top:1rem; padding:1rem; background:rgba(234, 179, 8, 0.1); border:1px solid #eab308; border-radius:0.5rem; color:#ca8a04;"><strong>API Blocked:</strong> We see your follower count changed (${signF}${diffF}), but Instagram temporarily blocked our script from fetching the exact names today. Try again in a few hours.</div>`;
+      }
+      
+      if (!apiSuccessFollowing && diffFl !== 0) {
+          comparisonHtml += `<div style="margin-top:1rem; padding:1rem; background:rgba(234, 179, 8, 0.1); border:1px solid #eab308; border-radius:0.5rem; color:#ca8a04;"><strong>API Blocked:</strong> We see your following count changed (${signFl}${diffFl}), but Instagram temporarily blocked the exact name extraction.</div>`;
+      }
 
-      if (lostUsers.length === 0 && newUsers.length === 0 && diffF >= 0) {
+      if (lostFollowers.length === 0 && newFollowers.length === 0 && lostFollowing.length === 0 && newFollowing.length === 0 && diffF === 0 && diffFl === 0) {
           comparisonHtml += `<div style="margin-top:1rem; color:var(--success);">No changes detected since last scan.</div>`;
       } else {
-          comparisonHtml += `<div style="display:flex; gap:1rem; flex-wrap: wrap;">${lostUsersHtml}${newUsersHtml}</div>`;
+          comparisonHtml += `<div style="display:flex; gap:1rem; flex-wrap: wrap;">${lostUsersHtml}${newUsersHtml}${newFollowingHtml}${lostFollowingHtml}</div>`;
       }
 
       comparisonHtml += `<p style="color:var(--text-muted); font-size:0.85rem; margin-top:1rem;">(We securely saved a new snapshot for your next visit).</p>`;
       hc.innerHTML = comparisonHtml;
       
     } else {
-      const namesExtractedMsg = stats.followersList && stats.followersList.length > 0 
-          ? `We successfully extracted <strong>${stats.followersList.length} exact usernames automatically</strong>.` 
-          : "Note: We couldn't extract exact names from the API.";
-
       hc.innerHTML = `
         <div style="color:var(--success); font-size:1.1rem; margin-bottom:0.5rem; font-weight:600;">Initial Invisible Scan Complete! ✓</div>
-        <p style="color:var(--text-muted); margin-bottom:0.5rem;">We saved your current follower counts and names locally. Run this extension again tomorrow to detect exactly who unfollowed you.</p>
-        <p style="color:var(--primary); font-size:0.9rem;">${namesExtractedMsg}</p>
+        <p style="color:var(--text-muted); margin-bottom:0.5rem;">We saved your current counts and lists locally. Run this extension again tomorrow to detect exact changes.</p>
+        <p style="color:var(--primary); font-size:0.9rem;">Followers extracted: ${stats.followersList?.length || 0} | Following extracted: ${stats.followingList?.length || 0}</p>
       `;
     }
 
@@ -267,10 +308,16 @@ function parseAndShowData(stats) {
             
             let usersStr = "";
             if (log.lost && log.lost.length > 0) {
-               usersStr += `<div style="color:#ef4444; font-size: 0.85rem; margin-top: 0.25rem;">Lost: ${log.lost.map(u=>`<a href="https://instagram.com/${u}" target="_blank" style="color:#ef4444;">@${u}</a>`).join(", ")}</div>`;
+               usersStr += `<div style="color:#ef4444; font-size: 0.85rem; margin-top: 0.25rem;">Unfollowers: ${log.lost.map(u=>`<a href="https://instagram.com/${u}" target="_blank" style="color:#ef4444;">@${u}</a>`).join(", ")}</div>`;
             }
             if (log.gained && log.gained.length > 0) {
-               usersStr += `<div style="color:var(--success); font-size: 0.85rem; margin-top: 0.25rem;">Gained: ${log.gained.map(u=>`<a href="https://instagram.com/${u}" target="_blank" style="color:var(--success);">@${u}</a>`).join(", ")}</div>`;
+               usersStr += `<div style="color:var(--success); font-size: 0.85rem; margin-top: 0.25rem;">New Followers: ${log.gained.map(u=>`<a href="https://instagram.com/${u}" target="_blank" style="color:var(--success);">@${u}</a>`).join(", ")}</div>`;
+            }
+            if (log.newFollowing && log.newFollowing.length > 0) {
+               usersStr += `<div style="color:#3b82f6; font-size: 0.85rem; margin-top: 0.25rem;">Newly Following: ${log.newFollowing.map(u=>`<a href="https://instagram.com/${u}" target="_blank" style="color:#3b82f6;">@${u}</a>`).join(", ")}</div>`;
+            }
+            if (log.lostFollowing && log.lostFollowing.length > 0) {
+               usersStr += `<div style="color:#6b7280; font-size: 0.85rem; margin-top: 0.25rem;">Unfollowed By You: ${log.lostFollowing.map(u=>`<a href="https://instagram.com/${u}" target="_blank" style="color:#6b7280;">@${u}</a>`).join(", ")}</div>`;
             }
 
             return `
@@ -297,15 +344,27 @@ function parseAndShowData(stats) {
       csvStr += `Follow Ratio,${ratio}\n`;
       csvStr += `Last Scanned,${now}\n\n`;
 
-      if (lostUsers.length > 0) {
+      if (lostFollowers.length > 0) {
         csvStr += `Unfollowers Detected\n`;
-        lostUsers.forEach(u => csvStr += `${u}\n`);
+        lostFollowers.forEach(u => csvStr += `${u}\n`);
         csvStr += `\n`;
       }
 
-      if (newUsers.length > 0) {
+      if (newFollowers.length > 0) {
         csvStr += `New Followers Detected\n`;
-        newUsers.forEach(u => csvStr += `${u}\n`);
+        newFollowers.forEach(u => csvStr += `${u}\n`);
+        csvStr += `\n`;
+      }
+      
+      if (newFollowing.length > 0) {
+        csvStr += `Newly Following\n`;
+        newFollowing.forEach(u => csvStr += `${u}\n`);
+        csvStr += `\n`;
+      }
+      
+      if (lostFollowing.length > 0) {
+        csvStr += `Unfollowed By Me\n`;
+        lostFollowing.forEach(u => csvStr += `${u}\n`);
         csvStr += `\n`;
       }
 
@@ -314,6 +373,15 @@ function parseAndShowData(stats) {
         stats.followersList.forEach(u => csvStr += `${u}\n`);
       } else {
         csvStr += `Full Followers List\n(No names extracted - API blocked or empty)\n`;
+      }
+      
+      csvStr += `\n`;
+      
+      if (stats.followingList && stats.followingList.length > 0) {
+        csvStr += `Full Following List (${stats.followingList.length} users)\n`;
+        stats.followingList.forEach(u => csvStr += `${u}\n`);
+      } else {
+        csvStr += `Full Following List\n(No names extracted)\n`;
       }
 
       const blob = new Blob(["\uFEFF" + csvStr], { type: "text/csv;charset=utf-8" });
@@ -326,7 +394,8 @@ function parseAndShowData(stats) {
          followers: fNum, 
          following: flNum, 
          date: now,
-         followersList: stats.followersList || []
+         followersList: stats.followersList || [],
+         followingList: stats.followingList || []
       },
       [historyDbKey]: history
     });
@@ -369,7 +438,8 @@ document.getElementById("csvFileInput").addEventListener("change", (e) => {
       let following = 0;
       let date = "";
       let followersList = [];
-      let isParsingList = false;
+      let followingList = [];
+      let parseMode = null;
 
       for (let line of lines) {
         line = line.replace(/^\uFEFF/, "").replace(/"/g, "");
@@ -378,10 +448,14 @@ document.getElementById("csvFileInput").addEventListener("change", (e) => {
         else if (line.startsWith("Followers,")) followers = parseInt(line.split(",")[1]);
         else if (line.startsWith("Following,")) following = parseInt(line.split(",")[1]);
         else if (line.startsWith("Last Scanned,")) date = line.substring(line.indexOf(",") + 1);
-        else if (line.startsWith("Full Followers List")) isParsingList = true;
-        else if (line.startsWith("Unfollowers Detected") || line.startsWith("New Followers Detected")) isParsingList = false;
-        else if (isParsingList && !line.includes("(No names")) {
+        else if (line.startsWith("Full Followers List")) parseMode = "followers";
+        else if (line.startsWith("Full Following List")) parseMode = "following";
+        else if (line.startsWith("Unfollowers Detected") || line.startsWith("New Followers Detected") || line.startsWith("Newly Following") || line.startsWith("Unfollowed By Me")) parseMode = "ignore";
+        else if (parseMode === "followers" && !line.includes("(No names")) {
           followersList.push(line.toLowerCase());
+        }
+        else if (parseMode === "following" && !line.includes("(No names")) {
+          followingList.push(line.toLowerCase());
         }
       }
 
@@ -389,10 +463,10 @@ document.getElementById("csvFileInput").addEventListener("change", (e) => {
 
       const dbKey = `snapshot_${username}`;
       chrome.storage.local.set({
-        [dbKey]: { followers, following, date, followersList }
+        [dbKey]: { followers, following, date, followersList, followingList }
       }, () => {
         const msg = $("#importSuccessMsg");
-        msg.textContent = `✓ Successfully imported backup for @${username} (${followersList.length} users). Click Extract to compare!`;
+        msg.textContent = `✓ Successfully imported backup for @${username}. Click Extract to compare!`;
         msg.classList.remove("hidden");
         $("#csvFileInput").value = "";
       });
