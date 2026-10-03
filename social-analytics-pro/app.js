@@ -63,7 +63,7 @@ async function connectLiveProfile() {
           } else {
             const searchRes = await fetch(`https://www.instagram.com/web/search/topsearch/?context=blended&query=${username}`);
             const searchJson = await searchRes.json();
-            const userObj = searchJson.users.find(u => u.user.username === username);
+            const userObj = searchJson.users.find(u => u.user.username.toLowerCase() === username.toLowerCase());
             if (userObj) userId = userObj.user.pk;
           }
 
@@ -83,8 +83,9 @@ async function connectLiveProfile() {
             let usersSet = new Set();
             let count = 0;
             
+            // Added search_surface and reduced count to ensure stable pagination
             while (hasNext && count < 3000) { 
-              const url = `https://www.instagram.com/api/v1/friendships/${userId}/followers/?count=200${maxId ? "&max_id="+maxId : ""}`;
+              const url = `https://www.instagram.com/api/v1/friendships/${userId}/followers/?count=100&search_surface=follow_list_page${maxId ? "&max_id="+maxId : ""}`;
               const res = await fetch(url, { headers });
               
               if (!res.ok) throw new Error("API rate limit or auth error");
@@ -92,14 +93,15 @@ async function connectLiveProfile() {
               const json = await res.json();
               if (json.users) {
                   for (let u of json.users) {
-                      usersSet.add(u.username);
+                      // CRITICAL FIX: Ensure all usernames are lowercase to prevent duplicate mismatch bugs
+                      usersSet.add(u.username.toLowerCase());
                       count++;
                   }
               }
               
               if (json.next_max_id) {
                   maxId = json.next_max_id;
-                  await new Promise(r => setTimeout(r, 600)); 
+                  await new Promise(r => setTimeout(r, 750)); // increased sleep slightly for safety
               } else {
                   hasNext = false;
               }
@@ -114,7 +116,7 @@ async function connectLiveProfile() {
           followers: followersCount, 
           following: followingCount, 
           posts: postsCount, 
-          username,
+          username: username.toLowerCase(),
           avatarUrl,
           followersList
         };
@@ -161,16 +163,24 @@ function parseAndShowData(stats) {
   currentDbKey = `snapshot_${stats.username}`;
   historyDbKey = `history_${stats.username}`;
 
-  chrome.storage.sync.get([currentDbKey, historyDbKey], (result) => {
+  // CRITICAL FIX: Moved from chrome.storage.sync to chrome.storage.local to avoid the 8KB limit per item
+  chrome.storage.local.get([currentDbKey, historyDbKey], (result) => {
     const last = result[currentDbKey];
     let history = result[historyDbKey] || [];
     const hc = $("#historyContent");
     
     let lostUsers = [];
     let newUsers = [];
-    if (last && last.followersList && stats.followersList && stats.followersList.length > 0) {
-      lostUsers = last.followersList.filter(u => !stats.followersList.includes(u));
-      newUsers = stats.followersList.filter(u => !last.followersList.includes(u));
+    
+    // Ensure case-insensitivity on old data as well
+    const sanitizeList = (list) => (list || []).map(u => u.toLowerCase());
+    
+    const oldList = sanitizeList(last ? last.followersList : []);
+    const newList = sanitizeList(stats.followersList);
+
+    if (last && oldList.length > 0 && newList.length > 0) {
+      lostUsers = oldList.filter(u => !newList.includes(u));
+      newUsers = newList.filter(u => !oldList.includes(u));
     }
 
     if (last) {
@@ -183,7 +193,6 @@ function parseAndShowData(stats) {
       const signF = diffF > 0 ? "+" : "";
       const signFl = diffFl > 0 ? "+" : "";
 
-      // Add to history log if there's any change
       if (diffF !== 0 || diffFl !== 0 || lostUsers.length > 0 || newUsers.length > 0) {
           history.unshift({
               date: now,
@@ -192,7 +201,7 @@ function parseAndShowData(stats) {
               lost: lostUsers,
               gained: newUsers
           });
-          if (history.length > 5) history = history.slice(0, 5); // Keep last 5
+          if (history.length > 5) history = history.slice(0, 5); 
       }
 
       let lostUsersHtml = "";
@@ -246,7 +255,6 @@ function parseAndShowData(stats) {
       `;
     }
 
-    // Render History Log
     const hlCard = $("#historyLogCard");
     const hlContent = $("#historyLogContent");
     if (history.length > 0) {
@@ -313,7 +321,7 @@ function parseAndShowData(stats) {
       chrome.downloads.download({url: u, filename: `${stats.username}-full-analytics.csv`, saveAs: true});
     };
 
-    chrome.storage.sync.set({
+    chrome.storage.local.set({
       [currentDbKey]: { 
          followers: fNum, 
          following: flNum, 
@@ -332,7 +340,7 @@ document.getElementById("connectBtn").addEventListener("click", connectLiveProfi
 
 document.getElementById("resetDbBtn").addEventListener("click", () => {
   if (currentDbKey) {
-    chrome.storage.sync.remove([currentDbKey, historyDbKey], () => {
+    chrome.storage.local.remove([currentDbKey, historyDbKey], () => {
       $("#historyContent").innerHTML = `
         <div style="color:#ef4444; font-size:1.1rem; margin-bottom:0.5rem; font-weight:600;">History Cleared! 🗑️</div>
         <p style="color:var(--text-muted);">Your historical data for this account has been deleted. Click "Extract" again to start a fresh snapshot.</p>
@@ -342,7 +350,6 @@ document.getElementById("resetDbBtn").addEventListener("click", () => {
   }
 });
 
-// CSV Import Logic
 document.getElementById("importBtn").addEventListener("click", () => {
   document.getElementById("csvFileInput").click();
 });
@@ -367,28 +374,26 @@ document.getElementById("csvFileInput").addEventListener("change", (e) => {
       for (let line of lines) {
         line = line.replace(/^\uFEFF/, "").replace(/"/g, "");
         
-        if (line.startsWith("Username,")) username = line.split(",")[1];
+        if (line.startsWith("Username,")) username = line.split(",")[1].toLowerCase();
         else if (line.startsWith("Followers,")) followers = parseInt(line.split(",")[1]);
         else if (line.startsWith("Following,")) following = parseInt(line.split(",")[1]);
         else if (line.startsWith("Last Scanned,")) date = line.substring(line.indexOf(",") + 1);
         else if (line.startsWith("Full Followers List")) isParsingList = true;
         else if (line.startsWith("Unfollowers Detected") || line.startsWith("New Followers Detected")) isParsingList = false;
         else if (isParsingList && !line.includes("(No names")) {
-          followersList.push(line);
+          followersList.push(line.toLowerCase());
         }
       }
 
       if (!username) throw new Error("Invalid CSV format: Username not found.");
 
       const dbKey = `snapshot_${username}`;
-      chrome.storage.sync.set({
+      chrome.storage.local.set({
         [dbKey]: { followers, following, date, followersList }
       }, () => {
         const msg = $("#importSuccessMsg");
         msg.textContent = `✓ Successfully imported backup for @${username} (${followersList.length} users). Click Extract to compare!`;
         msg.classList.remove("hidden");
-        
-        // Reset file input
         $("#csvFileInput").value = "";
       });
       
