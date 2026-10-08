@@ -80,14 +80,17 @@ async function connectLiveProfile() {
                 "Accept": "*/*"
             };
             
+            // Create a consistent rank token to lock the algorithmic pagination and prevent shifting
+            const rankToken = (Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2)).substring(0, 15);
+            
             async function fetchUsers(endpoint) {
               let hasNext = true;
               let maxId = "";
               let usersSet = new Set();
               let count = 0;
-              // Safe parameters to avoid Instagram blocking us
-              while (hasNext && count < 3000) { 
-                const url = `https://www.instagram.com/api/v1/friendships/${userId}/${endpoint}/?count=50${maxId ? "&max_id="+maxId : ""}`;
+              
+              while (hasNext && count < 4000) { 
+                const url = `https://www.instagram.com/api/v1/friendships/${userId}/${endpoint}/?count=100&search_surface=follow_list_page&rank_token=${rankToken}${maxId ? "&max_id="+maxId : ""}`;
                 const res = await fetch(url, { headers });
                 
                 if (!res.ok) throw new Error("API block");
@@ -102,7 +105,7 @@ async function connectLiveProfile() {
                 
                 if (json.next_max_id) {
                     maxId = json.next_max_id;
-                    await new Promise(r => setTimeout(r, 800)); // sleep 800ms
+                    await new Promise(r => setTimeout(r, 1000)); // 1 second sleep for extreme safety
                 } else {
                     hasNext = false;
                 }
@@ -187,7 +190,6 @@ function parseAndShowData(stats) {
     const oldFollowingList = sanitizeList(last ? last.followingList : []);
     const newFollowingList = sanitizeList(stats.followingList);
 
-    // Only compare if we successfully fetched lists THIS time and LAST time
     const apiSuccessFollowers = oldFollowersList.length > 0 && newFollowersList.length > 0;
     if (apiSuccessFollowers) {
       lostFollowers = oldFollowersList.filter(u => !newFollowersList.includes(u));
@@ -334,6 +336,43 @@ function parseAndShowData(stats) {
         hlCard.style.display = "none";
     }
 
+    // --- NEW SECTION: AUDIENCE INSIGHTS (Not Following Back & Fans) ---
+    const insightsContainer = $("#insightsContainer");
+    if (newFollowersList.length > 0 && newFollowingList.length > 0) {
+        insightsContainer.style.display = "block";
+        
+        const notFollowingMeBack = newFollowingList.filter(u => !newFollowersList.includes(u));
+        const fansIDontFollow = newFollowersList.filter(u => !newFollowingList.includes(u));
+        
+        let insightsHtml = "";
+        
+        if (notFollowingMeBack.length > 0) {
+            insightsHtml += `<div style="margin-top:1rem; padding:1rem; background:rgba(239, 68, 68, 0.05); border-radius:0.5rem; border:1px solid rgba(239, 68, 68, 0.3); flex: 1; min-width: 250px;">
+                <strong style="color:#ef4444; display:block; margin-bottom:0.5rem;">Not Following You Back 👻 (${notFollowingMeBack.length})</strong>
+                <div style="max-height: 150px; overflow-y: auto; padding-right: 5px;">
+                  <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.5rem;">
+                    ${notFollowingMeBack.map(u => `<li><a href="https://instagram.com/${u}" target="_blank" style="color:var(--text); text-decoration:none;">@${u}</a></li>`).join("")}
+                  </ul>
+                </div>
+             </div>`;
+        }
+        
+        if (fansIDontFollow.length > 0) {
+            insightsHtml += `<div style="margin-top:1rem; padding:1rem; background:rgba(16, 185, 129, 0.05); border-radius:0.5rem; border:1px solid rgba(16, 185, 129, 0.3); flex: 1; min-width: 250px;">
+                <strong style="color:var(--success); display:block; margin-bottom:0.5rem;">Fans (You Don't Follow Back) 🌟 (${fansIDontFollow.length})</strong>
+                <div style="max-height: 150px; overflow-y: auto; padding-right: 5px;">
+                  <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.5rem;">
+                    ${fansIDontFollow.map(u => `<li><a href="https://instagram.com/${u}" target="_blank" style="color:var(--text); text-decoration:none;">@${u}</a></li>`).join("")}
+                  </ul>
+                </div>
+             </div>`;
+        }
+        
+        $("#insightsContent").innerHTML = `<div style="display:flex; gap:1rem; flex-wrap: wrap;">${insightsHtml}</div>`;
+    } else {
+        insightsContainer.style.display = "none";
+    }
+
     $("#exportBtn").classList.remove("hidden");
     $("#exportBtn").onclick = () => {
       let csvStr = `Summary Metrics,Value\n`;
@@ -399,6 +438,9 @@ function parseAndShowData(stats) {
       },
       [historyDbKey]: history
     });
+    
+    // Auto-reset UI button text after completion
+    btn.textContent = "Extract & Save Snapshot";
   });
 
   $("#connectState").classList.add("hidden");
@@ -415,6 +457,7 @@ document.getElementById("resetDbBtn").addEventListener("click", () => {
         <p style="color:var(--text-muted);">Your historical data for this account has been deleted. Click "Extract" again to start a fresh snapshot.</p>
       `;
       $("#historyLogCard").style.display = "none";
+      $("#insightsContainer").style.display = "none";
     });
   }
 });
