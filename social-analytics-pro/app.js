@@ -80,17 +80,14 @@ async function connectLiveProfile() {
                 "Accept": "*/*"
             };
             
-            // Create a consistent rank token to lock the algorithmic pagination and prevent shifting
-            const rankToken = (Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2)).substring(0, 15);
-            
             async function fetchUsers(endpoint) {
               let hasNext = true;
               let maxId = "";
               let usersSet = new Set();
               let count = 0;
               
-              while (hasNext && count < 4000) { 
-                const url = `https://www.instagram.com/api/v1/friendships/${userId}/${endpoint}/?count=100&search_surface=follow_list_page&rank_token=${rankToken}${maxId ? "&max_id="+maxId : ""}`;
+              while (hasNext && count < 5000) { 
+                const url = `https://www.instagram.com/api/v1/friendships/${userId}/${endpoint}/?count=30${maxId ? "&max_id="+maxId : ""}`;
                 const res = await fetch(url, { headers });
                 
                 if (!res.ok) throw new Error("API block");
@@ -105,7 +102,7 @@ async function connectLiveProfile() {
                 
                 if (json.next_max_id) {
                     maxId = json.next_max_id;
-                    await new Promise(r => setTimeout(r, 1000)); // 1 second sleep for extreme safety
+                    await new Promise(r => setTimeout(r, 600)); 
                 } else {
                     hasNext = false;
                 }
@@ -184,11 +181,25 @@ function parseAndShowData(stats) {
     
     const sanitizeList = (list) => (list || []).map(u => u.toLowerCase());
     
-    const oldFollowersList = sanitizeList(last ? last.followersList : []);
-    const newFollowersList = sanitizeList(stats.followersList);
+    let oldFollowersList = sanitizeList(last ? last.followersList : []);
+    let newFollowersList = sanitizeList(stats.followersList);
     
-    const oldFollowingList = sanitizeList(last ? last.followingList : []);
-    const newFollowingList = sanitizeList(stats.followingList);
+    let oldFollowingList = sanitizeList(last ? last.followingList : []);
+    let newFollowingList = sanitizeList(stats.followingList);
+
+    // --- SMART HEALING ALGORITHM ---
+    // If the Instagram API drops users due to pagination bugs, the new list length will be strictly less than the HTML count.
+    // We trust the HTML counter. If the API missed people we ALREADY know about, we inject them back to prevent false unfollows.
+    if (last) {
+        if (newFollowersList.length > 0 && newFollowersList.length < fNum) {
+            const missing = oldFollowersList.filter(u => !newFollowersList.includes(u));
+            newFollowersList.push(...missing);
+        }
+        if (newFollowingList.length > 0 && newFollowingList.length < flNum) {
+            const missing = oldFollowingList.filter(u => !newFollowingList.includes(u));
+            newFollowingList.push(...missing);
+        }
+    }
 
     const apiSuccessFollowers = oldFollowersList.length > 0 && newFollowersList.length > 0;
     if (apiSuccessFollowers) {
@@ -336,7 +347,6 @@ function parseAndShowData(stats) {
         hlCard.style.display = "none";
     }
 
-    // --- NEW SECTION: AUDIENCE INSIGHTS (Not Following Back & Fans) ---
     const insightsContainer = $("#insightsContainer");
     if (newFollowersList.length > 0 && newFollowingList.length > 0) {
         insightsContainer.style.display = "block";
@@ -407,18 +417,18 @@ function parseAndShowData(stats) {
         csvStr += `\n`;
       }
 
-      if (stats.followersList && stats.followersList.length > 0) {
-        csvStr += `Full Followers List (${stats.followersList.length} users)\n`;
-        stats.followersList.forEach(u => csvStr += `${u}\n`);
+      if (newFollowersList.length > 0) {
+        csvStr += `Full Followers List (${newFollowersList.length} users)\n`;
+        newFollowersList.forEach(u => csvStr += `${u}\n`);
       } else {
         csvStr += `Full Followers List\n(No names extracted - API blocked or empty)\n`;
       }
       
       csvStr += `\n`;
       
-      if (stats.followingList && stats.followingList.length > 0) {
-        csvStr += `Full Following List (${stats.followingList.length} users)\n`;
-        stats.followingList.forEach(u => csvStr += `${u}\n`);
+      if (newFollowingList.length > 0) {
+        csvStr += `Full Following List (${newFollowingList.length} users)\n`;
+        newFollowingList.forEach(u => csvStr += `${u}\n`);
       } else {
         csvStr += `Full Following List\n(No names extracted)\n`;
       }
@@ -433,13 +443,12 @@ function parseAndShowData(stats) {
          followers: fNum, 
          following: flNum, 
          date: now,
-         followersList: stats.followersList || [],
-         followingList: stats.followingList || []
+         followersList: newFollowersList,
+         followingList: newFollowingList
       },
       [historyDbKey]: history
     });
     
-    // Auto-reset UI button text after completion
     btn.textContent = "Extract & Save Snapshot";
   });
 
