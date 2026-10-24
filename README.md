@@ -72,25 +72,10 @@ A lightweight Chrome extension that helps creators and marketers extract live en
 
 ---
 
-## 💼 Experience & Leadership Snapshot
-
-- **Software Engineer & Automation Developer · SightX AI** *(2026 - Present)*  
-  Building internal automation tools and CI/CD pipelines that eliminate manual operational bottlenecks and accelerate software delivery.
-- **HCI & Robotics Researcher & Developer · miLab (Reichman University)** *(2024 - Present)*  
-  Designing AI and robotic systems that have powered **250+ live participant experiments** and **2 academic studies**.
-- **Full-Stack Developer · Code4Good (Savyonim Nonprofit)** *(2026)*  
-  Co-built an automated ride-dispatching platform (Next.js, Supabase, WhatsApp) for volunteer drivers transporting patients and seniors, replacing manual spreadsheets and phone calls with real-time matching.
-- **Program Manager · Product-Hub** *(2026 - Present)*  
-  Leading a student product management program in collaboration with industry PMs (including Artlist) to train students in MVP strategy and ruthless prioritization.
-- **Python & Cybersecurity Instructor · Cyber Education Center & CYBERLABS** *(2023 - Present)*  
-  Taught **120+ high school students** and developed a **60-hour hands-on curriculum** in Python, network analysis, and cybersecurity.
-
----
-
 ## 🎓 Education
 
 **Reichman University (IDC Herzliya)**  
-Dual Degree: **BSc in Computer Science & BA in Entrepreneurship** *(2023 - Present)*
+Dual Degree: **BSc in Computer Science & BA in Entrepreneurship** 
 
 ---
 
