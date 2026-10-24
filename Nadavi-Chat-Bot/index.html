@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="he" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nadavi Chat Bot — AI Assistant with Prompt Controls</title>
+  <meta name="description" content="An AI chat assistant powered by Gemini, with real-time system prompt controls for length, attitude, and formality." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== LOGIN OVERLAY ===== -->
+  <div id="login-overlay" class="overlay active">
+    <div class="overlay-content">
+      <div class="bilingual-header">
+        <h2>Welcome to the Study</h2>
+        <h2 dir="rtl" class="he-text">ברוכים הבאים למחקר</h2>
+      </div>
+      <div class="bilingual-desc">
+        <p>Please ask the researcher for your participant number.</p>
+        <p dir="rtl" class="he-text">אנא בקש מהחוקר את מספר המשתתף שלך.</p>
+      </div>
+      <input type="text" id="participant-id" placeholder="Participant Number | מספר משתתף" />
+      <div class="lang-select">
+        <label><input type="radio" name="lang" value="en" checked /> English</label>
+        <label><input type="radio" name="lang" value="he" /> עברית</label>
+      </div>
+      <button id="login-next-btn">
+        <span>Next</span>
+        <span class="btn-divider">|</span>
+        <span dir="rtl">המשך</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== ONBOARDING OVERLAY ===== -->
+  <div id="onboarding-overlay" class="overlay">
+    <div class="overlay-content">
+      <h2 data-i18n="onboarding_title">Let's build your cover letter</h2>
+      
+      <div id="step-1" class="onboarding-step">
+        <label data-i18n="q1_label">1. A position you would enjoy working in one year from now:</label>
+        <input type="text" id="q1-input" />
+        <div class="step-buttons">
+          <button id="back-step-1" class="back-btn" data-i18n="back_btn">Back</button>
+          <button id="next-step-1" data-i18n="next_btn">Next</button>
+        </div>
+      </div>
+
+      <div id="step-2" class="onboarding-step" style="display: none;">
+        <label data-i18n="q2_label">2. Five things about yourself that would make you a good candidate for that role:</label>
+        <div class="slots-container">
+          <input type="text" id="q2-1" placeholder="1" />
+          <input type="text" id="q2-2" placeholder="2" />
+          <input type="text" id="q2-3" placeholder="3" />
+          <input type="text" id="q2-4" placeholder="4" />
+          <input type="text" id="q2-5" placeholder="5" />
+        </div>
+        <div class="step-buttons">
+          <button id="back-step-2" class="back-btn" data-i18n="back_btn">Back</button>
+          <button id="next-step-2" data-i18n="next_btn">Next</button>
+        </div>
+      </div>
+
+      <div id="step-3" class="onboarding-step" style="display: none;">
+        <label data-i18n="q3_label">3. One sentence about relevant experience you have. (No names!):</label>
+        <textarea id="q3-input" rows="2"></textarea>
+        <div class="step-buttons">
+          <button id="back-step-3" class="back-btn" data-i18n="back_btn">Back</button>
+          <button id="next-step-3" data-i18n="next_btn">Next</button>
+        </div>
+      </div>
+
+      <div id="step-4" class="onboarding-step" style="display: none; text-align: center;">
+        <h3 data-i18n="task_desc_title" style="margin-bottom: 8px; color: var(--text-primary);">Your Task</h3>
+        <p id="task-desc-text" style="font-size: 1rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 16px; white-space: pre-line;"></p>
+        <div class="step-buttons">
+          <button id="back-step-4" class="back-btn" data-i18n="back_btn">Back</button>
+          <button id="start-task-btn" data-i18n="start_btn">Start</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="app" style="display:none;">
+
+    <!-- ===== RIGHT PANE: Controls ===== -->
+    <div class="control-pane">
+
+      <!-- Settings Gear Button -->
+      <div class="settings-row">
+        <span class="pane-title" data-i18n="controls_title">Response Controls</span>
+        <button id="settings-toggle-btn" class="settings-gear-btn" title="API Settings">⚙️</button>
+      </div>
+
+      <!-- Hidden Settings Modal -->
+      <div class="settings-modal" id="settings-modal">
+        <div class="settings-modal-content panel-card">
+          <div class="settings-modal-header">
+            <span class="panel-card-title" data-i18n="api_config">API Configuration</span>
+            <button id="settings-close-btn" class="settings-close-btn">&times;</button>
+          </div>
+          <div class="api-key-wrapper">
+            <input type="password" id="api-key-input" placeholder="Enter Gemini API Key..." data-i18n-placeholder="enter_api_key_placeholder" />
+            <button id="save-key-btn" data-i18n="save">Save</button>
+          </div>
+          <div id="api-key-status" class="api-key-status empty" data-i18n="enter_api_key">Enter your Gemini API Key</div>
+          <div class="model-select-wrapper">
+            <label for="model-select" class="model-select-label" data-i18n="model">Model</label>
+            <select id="model-select"></select>
+          </div>
+          <div class="logs-wrapper" style="margin-top: 16px; text-align: center;">
+            <button id="download-logs-btn" class="download-logs-btn" data-i18n="download_logs">Download Slider Logs</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sliders -->
+      <div class="panel-card sliders-card">
+
+        <!-- Verbosity Slider -->
+        <div class="slider-group">
+          <div class="slider-header">
+            <span class="slider-label" data-i18n="verbosity">Verbosity <span class="info-tooltip" title="Controls the length and amount of detail in the letter. | שולט באורך וברמת הפירוט של המכתב.">?</span></span>
+            <span class="slider-value-badge" id="badge-verbosity">Balanced</span>
+          </div>
+          <input type="range" id="slider-verbosity" min="1" max="5" value="2" step="1" />
+          <div class="slider-steps" id="steps-verbosity">
+            <span>Very<br/>Concise</span>
+            <span>Concise</span>
+            <span class="active">Balanced</span>
+            <span>Detailed</span>
+            <span>Expansive</span>
+          </div>
+        </div>
+
+        <!-- Tone Slider -->
+        <div class="slider-group">
+          <div class="slider-header">
+            <span class="slider-label" data-i18n="tone">Tone</span>
+            <span class="slider-value-badge" id="badge-tone">Balanced</span>
+          </div>
+          <input type="range" id="slider-tone" min="1" max="5" value="4" step="1" />
+          <div class="slider-steps" id="steps-tone">
+            <span>Very<br/>Analytical</span>
+            <span>Analytical</span>
+            <span class="active">Balanced</span>
+            <span>Warm</span>
+            <span>Very<br/>Warm</span>
+          </div>
+        </div>
+
+        <!-- Self-promotion Slider -->
+        <div class="slider-group">
+          <div class="slider-header">
+            <span class="slider-label" data-i18n="self_promotion">Self-Promotion</span>
+            <span class="slider-value-badge" id="badge-self-promotion">Balanced</span>
+          </div>
+          <input type="range" id="slider-self-promotion" min="1" max="5" value="2" step="1" />
+          <div class="slider-steps" id="steps-self-promotion">
+            <span>Modest</span>
+            <span>Understated</span>
+            <span class="active">Balanced</span>
+            <span>Bold</span>
+            <span>Emphatic</span>
+          </div>
+        </div>
+        
+        <!-- Update Letter Button for Condition 3 -->
+        <button id="update-letter-btn" class="submit-btn" style="display: none; align-self: center; font-size: 1rem; padding: 10px 20px; border-radius: 8px; margin-top: 10px;" data-i18n="update_letter_btn">Update Letter</button>
+      </div>
+
+      <!-- Hidden prompt-preview for JS compatibility -->
+      <div id="prompt-preview" style="display:none;"></div>
+
+    </div>
+
+    <!-- Divider -->
+    <div class="pane-divider"></div>
+
+    <!-- ===== MIDDLE PANE: Chat ===== -->
+    <div class="chat-pane">
+
+      <!-- Header -->
+      <div class="chat-header">
+        <div class="chat-header-left" style="display: none;">
+          <button id="sidebar-toggle-btn" class="icon-btn" title="Toggle Sidebar">☰</button>
+          <div class="active-task-display">
+            <span class="task-label" data-i18n="task_label">TASK:</span>
+            <span class="task-title" id="task-text">טוען...</span>
+            <div class="task-tooltip" id="task-desc">...</div>
+          </div>
+        </div>
+
+        <div class="chat-header-right">
+          <div class="header-buttons-stack">
+            <button class="new-chat-btn" id="new-chat-btn" title="התחל צ'אט חדש"><span data-i18n="new_chat">צ'אט חדש</span></button>
+            <button class="task-refresh-btn" id="task-refresh-btn" title="החלף למשימה חדשה"><span data-i18n="new_task">משימה חדשה</span></button>
+          </div>
+          <div class="chat-status-dot" id="chat-status-dot" title="Online"></div>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="chat-messages" id="chat-messages">
+        <div class="welcome-container">
+          <div class="welcome-icon">💬</div>
+          <h2 data-i18n="welcome_title">Welcome to your AI assistant</h2>
+          <!-- welcome_desc removed -->
+        </div>
+      </div>
+
+      <!-- Input -->
+      <div class="chat-input-wrapper" style="display: flex; flex-direction: column; gap: 8px;">
+        <button id="submit-letter-btn" class="submit-btn" style="display:none; align-self: center; font-size: 1.1rem; padding: 12px 24px; border-radius: 8px;" data-i18n="submit_btn">Ready to Submit</button>
+        <div class="chat-input-area">
+          <textarea id="chat-input" placeholder="Type your message..." rows="1" data-i18n-placeholder="input_placeholder"></textarea>
+          <button id="send-btn" title="Send message">
+            ➤
+          </button>
+        </div>
+      </div>
+
+      <!-- Footer Tagline -->
+      <div class="chat-footer-branding">
+        <span class="footer-title">Nadavi Chat Bot</span>
+      </div>
+
+    </div>
+    
+    <!-- Divider -->
+    <div class="pane-divider" id="canvas-chat-divider"></div>
+
+    <!-- ===== LEFT PANE: Canvas ===== -->
+    <div class="canvas-pane" id="canvas-pane">
+      <div class="canvas-header">
+        <span class="pane-title" data-i18n="canvas_title">Cover Letter Draft</span>
+        <div id="timer-display" class="timer-display" style="display:none" data-i18n="timer_warning">2 Minutes Remaining!</div>
+      </div>
+      <div class="canvas-content-wrapper">
+        <div id="cover-letter-canvas" class="cover-letter-canvas">
+          <!-- The letter will be rendered here -->
+          <p class="placeholder-text" data-i18n="canvas_placeholder">Your AI assistant will write the draft here.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Error Toast -->
+  <div class="error-toast" id="error-toast"></div>
+
+  <!-- App Script -->
+  <!-- ===== CUSTOM ALERT OVERLAY ===== -->
+  <div id="custom-alert-overlay" class="overlay">
+    <div class="overlay-content" style="text-align: center; max-width: 400px; padding: 30px;">
+      <p id="custom-alert-text" style="font-size: 1.1rem; margin-bottom: 24px; color: var(--text-primary); font-weight: 500;"></p>
+      <button id="custom-alert-btn" style="width: 100%;">OK</button>
+    </div>
+  </div>
+
+  <div id="custom-confirm-overlay" class="overlay">
+    <div class="overlay-content" style="text-align: center; max-width: 400px; padding: 30px;">
+      <p id="custom-confirm-text" style="font-size: 1.1rem; margin-bottom: 24px; color: var(--text-primary); font-weight: 500;"></p>
+      <div style="display: flex; gap: 16px; justify-content: center;">
+        <button id="custom-confirm-cancel-btn" style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-glass); flex: 1;">Cancel</button>
+        <button id="custom-confirm-ok-btn" style="flex: 1;">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== END OVERLAY ===== -->
+  <div id="end-overlay" class="overlay">
+    <div class="overlay-content" style="text-align: center; max-width: 450px; padding: 40px;">
+      <h2 style="margin-bottom: 16px;" id="end-title">Thank You</h2>
+      <p id="end-message" style="font-size: 1.1rem; color: var(--text-secondary);"></p>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+
+</body>
+</html>
