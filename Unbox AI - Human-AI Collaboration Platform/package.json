@@ -1,7 +1,7 @@
 {
-  "name": "nadavi_chat_bot",
+  "name": "unbox-ai-human-ai-collaboration-platform",
   "version": "1.0.0",
-  "description": "Nadavi Chat Bot is a specialized interactive platform designed for conducting academic user studies on human-AI collaboration. The platform simulates an AI assistant helping participants draft a cover letter while allowing the researcher to inject various conditions (e.g., personality changes based on sliders) to test participant reactions.",
+  "description": "Unbox AI - Human-AI Collaboration Platform is a specialized interactive platform designed for conducting academic user studies on human-AI collaboration. The platform simulates an AI assistant helping participants draft a cover letter while allowing the researcher to inject various conditions (e.g., personality changes based on sliders) to test participant reactions.",
   "main": "app.js",
   "dependencies": {
     "accepts": "^2.0.0",
